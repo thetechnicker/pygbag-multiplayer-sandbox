@@ -4,14 +4,18 @@ import json
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 async def send_messages(websocket):
     """Handles sending messages to the echo server."""
     try:
         while True:
+            await asyncio.sleep(0.1)
             message = input("Enter message: ")
-            if message.lower() == 'exit':
+            if message.lower() == "exit":
                 try:
                     await websocket.send(json.dumps({"command": "exit"}))
                     break
@@ -33,21 +37,23 @@ async def send_messages(websocket):
     except Exception as e:
         logging.error(f"Error in send_messages: {e}")
 
+
 async def receive_messages(websocket):
     """Handles receiving messages from the echo server."""
     try:
         while True:
             try:
                 response = await websocket.recv()
-                print(f"Received: {response}")
+                print(f"Received: {response}", flush=True)
             except websockets.exceptions.ConnectionClosedError:
-                print("Connection to echo server closed.")
+                print("Connection to echo server closed.", flush=True)
                 break
             except Exception as e:
                 logging.error(f"Error receiving message: {e}")
                 break
     except Exception as e:
         logging.error(f"Error in receive_messages: {e}")
+
 
 async def interact_with_echo_server(websocket):
     """Manages interaction with the echo server."""
@@ -59,8 +65,7 @@ async def interact_with_echo_server(websocket):
 
     # Wait for either task to complete (e.g., user exits)
     done, pending = await asyncio.wait(
-        [send_task, receive_task],
-        return_when=asyncio.FIRST_COMPLETED
+        [send_task, receive_task], return_when=asyncio.FIRST_COMPLETED
     )
 
     # Cancel any remaining tasks
@@ -72,6 +77,7 @@ async def interact_with_echo_server(websocket):
             pass  # Expected exception during cancellation
         except Exception as e:
             logging.error(f"Error cancelling task: {e}")
+
 
 async def client():
     uri = "ws://localhost:8765"
@@ -85,34 +91,39 @@ async def client():
                 print("4. Quit")
                 choice = input("Enter your choice (1-4): ")
 
-                if choice == '1':
+                if choice == "1":
                     try:
                         await websocket.send(json.dumps({"command": "list"}))
                         response = await websocket.recv()
                         servers = json.loads(response)["servers"]
                         print("\nAvailable Echo Servers:")
                         for server in servers:
-                            print(f"ID: {server['id']}, Address: {server['address']}, Clients: {server['clients']}") # Corrected line
+                            print(
+                                f"ID: {server['id']}, Address: {server['address']}, Clients: {server['clients']}"
+                            )  # Corrected line
                     except Exception as e:
                         print(f"Error listing servers: {e}")
 
-
-                elif choice == '2':
+                elif choice == "2":
                     try:
                         await websocket.send(json.dumps({"command": "create"}))
                         response = await websocket.recv()
                         response_data = json.loads(response)
                         print(response_data["message"])
-                        print(f"Server created with address: {response_data['address']}")
+                        print(
+                            f"Server created with address: {response_data['address']}"
+                        )
 
                     except Exception as e:
                         print(f"Error creating server: {e}")
 
-                elif choice == '3':
+                elif choice == "3":
                     server_id = input("Enter server ID to join: ")
                     try:
                         server_id = int(server_id)  # Convert to integer
-                        await websocket.send(json.dumps({"command": "join", "server_id": server_id}))
+                        await websocket.send(
+                            json.dumps({"command": "join", "server_id": server_id})
+                        )
                         response = await websocket.recv()
                         response_data = json.loads(response)
 
@@ -122,7 +133,9 @@ async def client():
                             # Connect to the echo server (new connection)
                             echo_server_uri = response_data.get("address")
                             try:
-                                async with websockets.connect(echo_server_uri) as echo_ws:
+                                async with websockets.connect(
+                                    echo_server_uri
+                                ) as echo_ws:
                                     await interact_with_echo_server(echo_ws)
                             except Exception as e:
                                 print(f"Error connecting to echo server: {e}")
@@ -132,8 +145,7 @@ async def client():
                     except Exception as e:
                         print(f"Error joining server: {e}")
 
-
-                elif choice == '4':
+                elif choice == "4":
                     print("Goodbye!")
                     break
                 else:
@@ -142,6 +154,7 @@ async def client():
         print("Connection to main server closed.")
     except Exception as e:
         logging.error(f"Client error: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(client())
