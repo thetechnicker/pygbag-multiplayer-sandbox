@@ -14,7 +14,8 @@ async def client_task(client_id, action="create_and_join"):
 
             # Use an iterator instead of __next__
             input_values = simulate_input()
-            client.input = lambda tmp: next(input_values)
+            
+            #client.input = lambda tmp: next(input_values)
 
             await client.client()
 
@@ -29,7 +30,7 @@ async def client_task(client_id, action="create_and_join"):
 
             # Use an iterator instead of __next__
             input_values = simulate_find_and_join()
-            client.input = lambda tmp: next(input_values)
+            #client.input = lambda tmp: next(input_values)
 
             await client.client()
         else:
