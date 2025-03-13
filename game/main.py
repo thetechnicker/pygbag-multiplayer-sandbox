@@ -6,9 +6,10 @@ import random
 pygame.init()
 
 # Screen dimensions
+# WIDTH, HEIGHT = 320, 240
 WIDTH, HEIGHT = 640, 480
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Pong Game")
+# pygame.display.set_caption("Pong Game")
 clock = pygame.time.Clock()
 
 # Colors
@@ -25,9 +26,15 @@ BALL_SPEED_X = 4
 BALL_SPEED_Y = 4
 
 # Initialize paddles and ball positions
-left_paddle = pygame.Rect(20, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT)
-right_paddle = pygame.Rect(WIDTH - 30, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT)
-ball = pygame.Rect(WIDTH // 2 - BALL_SIZE // 2, HEIGHT // 2 - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE)
+left_paddle = pygame.Rect(
+    20, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT
+)
+right_paddle = pygame.Rect(
+    WIDTH - 30, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT
+)
+ball = pygame.Rect(
+    WIDTH // 2 - BALL_SIZE // 2, HEIGHT // 2 - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE
+)
 
 # Ball velocity
 ball_vel_x = BALL_SPEED_X * random.choice((-1, 1))
@@ -36,6 +43,16 @@ ball_vel_y = BALL_SPEED_Y * random.choice((-1, 1))
 # Scores
 left_score = 0
 right_score = 0
+
+# Load custom font (ensure "font.ttf" exists in your project directory)
+try:
+    font = pygame.font.Font(
+        "font.ttf", 74
+    )  # Replace "font.ttf" with your font file name.
+except FileNotFoundError:
+    font = pygame.font.Font(
+        None, 74
+    )  # Fallback to default font if custom font is missing.
 
 
 async def main():
@@ -88,15 +105,17 @@ async def main():
         pygame.draw.aaline(screen, WHITE, (WIDTH // 2, 0), (WIDTH // 2, HEIGHT))
 
         # Display scores
-        font = pygame.font.Font(None, 74)
         left_text = font.render(str(left_score), True, WHITE)
         right_text = font.render(str(right_score), True, WHITE)
         screen.blit(left_text, (WIDTH // 4 - left_text.get_width() // 2, 20))
         screen.blit(right_text, (3 * WIDTH // 4 - right_text.get_width() // 2, 20))
 
         # Update display and tick clock
+        # pygame.display.flip()
         pygame.display.update()
         clock.tick(60)
+
+        # Allow asyncio to process other tasks (important for Pygbag compatibility)
         await asyncio.sleep(0)
 
     pygame.quit()
@@ -111,4 +130,6 @@ def reset_ball():
     ball_vel_y *= random.choice((-1, 1))
 
 
-asyncio.run(main())
+# Entry point for both local execution and Pygbag.
+if __name__ == "__main__":
+    asyncio.run(main())
