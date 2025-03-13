@@ -4,6 +4,7 @@ import threading
 import websockets
 import random
 import logging
+import argparse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -152,6 +153,14 @@ class MainServer:
         except Exception as e:
             logging.error(f"Error starting main server: {e}")
 
-if __name__ == "__main__":
-    main_server = MainServer()
+def main():
+    parser = argparse.ArgumentParser(description="Main Server for managing Echo Servers")
+    parser.add_argument("--host", type=str, default="localhost", help="Host for the main server")
+    parser.add_argument("--port", type=int, default=8765, help="Port for the main server")
+    args = parser.parse_args()
+
+    main_server = MainServer(host=args.host, port=args.port)
     asyncio.run(main_server.start())
+
+if __name__ == "__main__":
+    main()
