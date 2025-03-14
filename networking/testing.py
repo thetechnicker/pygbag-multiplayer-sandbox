@@ -1,5 +1,6 @@
 import asyncio
-import client
+import networking.test_client as test_client
+
 
 async def client_task(client_id, action="create_and_join"):
     uri = "ws://localhost:8765"
@@ -14,10 +15,11 @@ async def client_task(client_id, action="create_and_join"):
 
             # Use an iterator instead of __next__
             input_values = simulate_input()
-            
-            #client.input = lambda tmp: next(input_values)
+            val = await input_values.__anext__()
 
-            await client.client()
+            test_client.input = lambda tmp: val
+
+            await test_client.client()
 
         elif action == "find_and_join":
             print(f"Client {client_id}: Finding and joining an existing echo server")
@@ -30,14 +32,18 @@ async def client_task(client_id, action="create_and_join"):
 
             # Use an iterator instead of __next__
             input_values = simulate_find_and_join()
-            #client.input = lambda tmp: next(input_values)
 
-            await client.client()
+            val = await input_values.__anext__()
+
+            test_client.input = lambda tmp: val
+
+            await test_client.client()
         else:
             print(f"Client {client_id}: Unknown action")
             return
     except Exception as e:
         print(f"Client {client_id} error: {e}")
+
 
 async def main():
     # Start the main server (assuming it's running externally)
@@ -49,6 +55,7 @@ async def main():
 
     # Wait for the tasks to complete
     await asyncio.gather(client1_task, client2_task)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
