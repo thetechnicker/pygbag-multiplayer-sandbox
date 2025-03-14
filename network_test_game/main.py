@@ -1,3 +1,4 @@
+import struct
 import pygame
 import pygbag.aio as asyncio
 import socket
@@ -50,25 +51,23 @@ class WebSocketClient:
 
         while self.running:
             try:
-                ready_to_read, _, _ = select.select([self.socket], [], [], 0)
+                ready_to_read, _, _ = select.select([self.socket], [], [], 0.1)
                 if ready_to_read:
                     data = self.socket.recv(4096)  # Receive up to 4096 bytes
                     if data:
                         self.receive_buffer += data
                         # Process complete messages (assuming newline-separated)
                         while b"\n" in self.receive_buffer:
-                            message, self.receive_buffer = self.receive_buffer.split(
-                                b"\n", 1
-                            )
+                            message, self.receive_buffer = self.receive_buffer.split(b"\n", 1)
                             decoded_message = message.decode("utf-8")
                             if self.on_message_callback:
                                 self.on_message_callback(decoded_message)
-                    else:
-                        # Socket closed
-                        print("Server closed the connection.")
-                        await self.close()
-                        return
-                await asyncio.sleep(0)  # Yield to the event loop
+                    # else:
+                    #     # Socket closed
+                    #     print("Server closed the connection.")
+                    #     await self.close()
+                    #     return
+                await asyncio.sleep(0.01)  # Yield to the event loop
 
             except ConnectionResetError:
                 print("Connection reset by server.")
@@ -79,24 +78,34 @@ class WebSocketClient:
                 await self.close()
                 return
 
-    def send(self, message):
-        """Send a message to the server."""
-        if self.socket:
-            try:
-                self.socket.send(
-                    (message + "\n").encode("utf-8")
-                )  # Add newline for message separation
-            except Exception as e:
-                print(f"Error sending data: {e}")
-                self.close()
-
     async def close(self):
-        """Close the connection."""
         if self.socket:
             self.running = False
-            self.socket.close()
-            self.socket = None
-            print("Connection closed.")
+            try:
+                # Send a close frame (simplified)
+                self.socket.send(struct.pack("!BB", 0x88, 0x00))
+                # Wait for close frame from server (simplified)
+                self.socket.settimeout(2.0)
+                self.socket.recv(1024)
+            except Exception:
+                pass  # Ignore errors during close
+            finally:
+                self.socket.close()
+                self.socket = None
+                print("Connection closed.")
+
+    async def reconnect(self):
+        await self.close()
+        await asyncio.sleep(5)  # Wait before attempting to reconnect
+        await self.connect()
+
+    def send(self, message):
+        if self.socket:
+            try:
+                self.socket.send((message + "\n").encode("utf-8"))
+            except Exception as e:
+                print(f"Error sending data: {e}")
+                asyncio.create_task(self.reconnect())
 
     def set_message_callback(self, callback):
         """Set the callback function for incoming messages."""
