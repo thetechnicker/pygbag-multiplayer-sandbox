@@ -70,7 +70,7 @@ class EchoServer:
         disconnected_clients = []
         for client in self.clients:
             try:
-                await client.send(message)
+                await client.send(message + "\n")  # Append newline character here
             except websockets.exceptions.ConnectionClosedError:
                 logging.info(f"Client disconnected during broadcast")
                 disconnected_clients.append(client)
@@ -126,6 +126,11 @@ class MainServer:
                         )
                     elif command == "join":
                         await self.join_echo_server(websocket, data.get("server_id"))
+                    elif command == "message":
+                        logging.info(f"Received message: {data.get('message')}")
+                        await websocket.send(
+                            json.dumps({"message": "Message received"})
+                        )
                     else:
                         await websocket.send(json.dumps({"error": "Invalid command"}))
                 except json.JSONDecodeError as e:

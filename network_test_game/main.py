@@ -18,7 +18,7 @@ class BrowserConsoleHandler(logging.Handler):
 
 # Initialize logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[BrowserConsoleHandler()],
 )
@@ -102,29 +102,25 @@ class WebSocketClient:
         logger.info(f"Connecting to {self.host}:{self.port}...")
 
     async def receive(self):
+        logger.debug("Starting receive loop...")
         """Asynchronously receive data from the socket."""
         if self.socket is None:
             logger.error("Socket is not initialized.")
             return
 
         while self.running:
+            # logger.debug("Receiving data...")
             try:
                 ready_to_read, _, _ = select.select([self.socket], [], [], 0.1)
                 if ready_to_read:
-                    data = self.socket.recv(1024)  # Receive up to 4096 bytes
+                    data = self.socket.recv(4096)  # Receive up to 4096 bytes
                     logger.debug(f"Received data: {data}")
                     if data:
-                        self.receive_buffer += data
-                        # Process complete messages (assuming newline-separated)
-                        while b"\n" in self.receive_buffer:
-                            message, self.receive_buffer = self.receive_buffer.split(
-                                b"\n", 1
-                            )
-                            decoded_message = message.decode("utf-8")
-                            if self.on_message_callback:
-                                self.on_message_callback(decoded_message)
-                            else:
-                                logger.info(f"Received message: {decoded_message}")
+                        decoded_message = data.decode("utf-8")
+                        if self.on_message_callback:
+                            self.on_message_callback(decoded_message)
+                        else:
+                            logger.info(f"Received message: {decoded_message}")
                     else:
                         # Socket closed
                         logger.info("Server closed the connection.")
@@ -215,11 +211,13 @@ class LobbyScreen:
     def handle_message(self, message):
         try:
             data = json.loads(message)
-            if "servers	" in data:
+            logger.debug(f"Received data in LobbyScreen.handle_message: {data}")
+            if "servers" in data:
                 self.server_list = data["servers"]
-            elif "server_id" in data:
+                logger.debug(f"Server list: {self.server_list}")
+            if "server_id" in data:
                 self.current_server_id = data["server_id"]
-            elif "message" in data:
+            if "message" in data:
                 self.message_log.append(data["message"])
                 if len(self.message_log) > 10:
                     self.message_log.pop(0)
@@ -296,9 +294,9 @@ async def main():
     running = True
     while running:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                break
+            # if event.type == pygame.QUIT:
+            #     running = False
+            #     break
             lobby.handle_event(event)
         lobby.handle_mouse_pos(pygame.mouse.get_pos())
         lobby.draw(screen)
@@ -311,9 +309,9 @@ async def main():
     pygame.quit()
 
 
-async def socket_handler(ws_client):
-    await ws_client.connect()
-    await ws_client.receive()
+# async def socket_handler(ws_client):
+#     await ws_client.connect()
+#     await ws_client.receive()
 
 
 asyncio.run(main())

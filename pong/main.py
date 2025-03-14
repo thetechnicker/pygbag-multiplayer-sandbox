@@ -65,6 +65,8 @@ async def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.FINGERDOWN or event.type == pygame.FINGERMOTION:
+                handle_touch(event)
 
         # Get keys for paddle movement
         keys = pygame.key.get_pressed()
@@ -119,6 +121,14 @@ async def main():
         await asyncio.sleep(0)
 
     pygame.quit()
+
+
+def handle_touch(event):
+    """Handles touch events for paddle movement."""
+    if event.x < 0.5:  # Left side of the screen
+        left_paddle.centery = event.y * HEIGHT
+    else:  # Right side of the screen
+        right_paddle.centery = event.y * HEIGHT
 
 
 def reset_ball():
