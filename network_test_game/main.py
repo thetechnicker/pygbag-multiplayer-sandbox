@@ -58,9 +58,7 @@ class WebSocketClient:
                         self.receive_buffer += data
                         # Process complete messages (assuming newline-separated)
                         while b"\n" in self.receive_buffer:
-                            message, self.receive_buffer = self.receive_buffer.split(
-                                b"\n", 1
-                            )
+                            message, self.receive_buffer = self.receive_buffer.split(b"\n", 1)
                             decoded_message = message.decode("utf-8")
                             if self.on_message_callback:
                                 self.on_message_callback(decoded_message)
@@ -141,8 +139,10 @@ async def main():
                 running = False
                 break
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    ws_client.send("Hello from Pygame!")  # Send on spacebar press
+                if event.key == pygame.K_c:
+                    ws_client.send(b'{"command": "create"}')  # Send on spacebar press
+                if event.key == pygame.K_j:
+                    ws_client.send(b'{"command": "join", "server_id": 1}')  # Send on spacebar press
 
         screen.fill((0, 0, 0))  # Clear the screen
 

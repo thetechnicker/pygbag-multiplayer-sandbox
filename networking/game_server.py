@@ -1,5 +1,6 @@
 import asyncio
 import json
+import ssl
 import threading
 import websockets
 import random
@@ -10,6 +11,14 @@ import argparse
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+try:
+    ssl_context.load_cert_chain(certfile="certs/server.pem", keyfile="certs/key.pem")
+    logging.info("SSL context loaded successfully")
+except Exception as e:
+    logging.error(f"Failed to load SSL context: {str(e)}")
+    exit()
 
 
 class EchoServer:
@@ -76,7 +85,9 @@ class EchoServer:
 
     async def start(self):
         try:
-            server = await websockets.serve(self.handle_client, self.host, self.port)
+            server = await websockets.serve(
+                self.handle_client, self.host, self.port, ssl=ssl_context
+            )
             logging.info(f"Echo server started on ws://{self.host}:{self.port}")
             await server.wait_closed()
         except Exception as e:
@@ -179,7 +190,9 @@ class MainServer:
 
     async def start(self):
         try:
-            server = await websockets.serve(self.handle_client, self.host, self.port)
+            server = await websockets.serve(
+                self.handle_client, self.host, self.port, ssl=ssl_context
+            )
             logging.info(f"Main server started on ws://{self.host}:{self.port}")
             await server.wait_closed()
         except Exception as e:
