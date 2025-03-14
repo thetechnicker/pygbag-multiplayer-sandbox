@@ -1,38 +1,51 @@
 import asyncio
 import ssl
 import websockets
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("wss_server")
 
 
-async def handler(websocket):
-    async for message in websocket:
-        print(f"Received: {message}")
-        await websocket.send(f"Echo: {message}")
-        await broadcast(f"User said: {message}")  # Broadcast example
-
-
-connected = set()
-
-
-async def broadcast(message):
-    for ws in connected.copy():
-        try:
-            await ws.send(message)
-        except websockets.ConnectionClosed:
-            connected.remove(ws)
+async def echo(websocket, path):
+    client = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
+    logger.info(f"New connection from {client}")
+    try:
+        async for message in websocket:
+            logger.info(f"Received message from {client}: {message}")
+            response = f"Echo: {message}"
+            await websocket.send(response)
+            logger.info(f"Sent response to {client}: {response}")
+    except websockets.exceptions.ConnectionClosedError:
+        logger.info(f"Connection closed with {client}")
+    except Exception as e:
+        logger.error(f"Error handling {client}: {str(e)}")
+    finally:
+        logger.info(f"Connection closed with {client}")
 
 
 async def main():
-    # SSL Configuration (Use Let's Encrypt in production)
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ssl_context.load_cert_chain(
-        certfile="/etc/ssl/certs/ssl-cert-snakeoil.pem",
-        keyfile="/etc/ssl/private/ssl-cert-snakeoil.key",
-    )
+    try:
+        ssl_context.load_cert_chain(
+            certfile="certs/server.pem", keyfile="certs/key.pem"
+        )
+        logger.info("SSL context loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load SSL context: {str(e)}")
+        return
 
-    async with websockets.serve(
-        lambda ws: handler(ws), "0.0.0.0", 8080, ssl=ssl_context  # Handler
-    ):
-        await asyncio.Future()  # Run forever
+    try:
+        server = await websockets.serve(echo, "localhost", 8765, ssl=ssl_context)
+        logger.info("WebSocket server started on wss://localhost:8765")
+        await server.wait_closed()
+    except Exception as e:
+        logger.error(f"Failed to start server: {str(e)}")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,6 @@ Upgrade: websocket
 Connection: Upgrade
 Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
 Sec-WebSocket-Protocol: chat
-
 """  # Note the extra newline at the end
 
 
@@ -31,11 +30,7 @@ def handle_client(secure_conn, addr):
         # Main communication loop
         while True:
             data = secure_conn.recv(1024)
-            if not data:
-                break
-            print(f"Received from {addr}: {data.decode().strip()}")
-            response = f"Server received: {data.decode().strip()}\n"
-            secure_conn.sendall(response.encode())
+            secure_conn.sendall(b"hehe\n")
     except Exception as e:
         print(f"Error handling client {addr}: {e}")
     finally:

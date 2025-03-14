@@ -58,15 +58,17 @@ class WebSocketClient:
                         self.receive_buffer += data
                         # Process complete messages (assuming newline-separated)
                         while b"\n" in self.receive_buffer:
-                            message, self.receive_buffer = self.receive_buffer.split(b"\n", 1)
+                            message, self.receive_buffer = self.receive_buffer.split(
+                                b"\n", 1
+                            )
                             decoded_message = message.decode("utf-8")
                             if self.on_message_callback:
                                 self.on_message_callback(decoded_message)
-                    # else:
-                    #     # Socket closed
-                    #     print("Server closed the connection.")
-                    #     await self.close()
-                    #     return
+                    else:
+                        # Socket closed
+                        print("Server closed the connection.")
+                        await self.close()
+                        return
                 await asyncio.sleep(0.01)  # Yield to the event loop
 
             except ConnectionResetError:
