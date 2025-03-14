@@ -1,212 +1,110 @@
-import pygbag.aio as asyncio
-
+import json
+import platform
+import struct
 import sys
-import aio
-import time
+import pygame
+import pygbag.aio as asyncio
 import socket
 import select
-import json
-import base64
-import io
+import logging
 
 
-class WebSocket:
+class WebSocketClient:
     """
-    A general-purpose WebSocket module for pygbag web games.
+    A simple WebSocket client for pygbag, using sockets directly for demonstration.
+    This isn't a full WebSocket implementation; it's a simplified example for
+    communicating with a basic echo server.
 
-    This class provides a simple interface for establishing and managing
-    WebSocket connections, sending and receiving data, and handling
-    connection events.
-
-    Args:
-        url (str): The WebSocket URL to connect to.
-        on_open (callable, optional): Callback function to be called when the
-            connection is established. Defaults to None.
-        on_message (callable, optional): Callback function to be called when a
-            message is received. Defaults to None.
-        on_close (callable, optional): Callback function to be called when the
-            connection is closed. Defaults to None.
-        on_error (callable, optional): Callback function to be called when an
-            error occurs. Defaults to None.
+    Important: For real WebSocket communication, especially in production,
+    use a proper WebSocket library like 'websockets' or 'aiohttp'.
     """
 
-    def __init__(self, url, on_open=None, on_message=None, on_close=None, on_error=None):
-        self.url = url
-        self.on_open = on_open
-        self.on_message = on_message
-        self.on_close = on_close
-        self.on_error = on_error
-        self.host, self.port = self._parse_url(url)
+    def __init__(self, host, port, on_message_callback=None):
+        self.host = host
+        self.port = port
+        self.logger = logging.getLogger("WebSocketClient")
         self.socket = None
-        self.rxq = []  # Receive queue
-        self.txq = []  # Transmit queue
-        self.connected = False
-        aio.create_task(self._connect())
+        self.running = False
+        self.on_message_callback = on_message_callback
+        self.receive_buffer = b""  # Accumulate received data
 
-    def _parse_url(self, url):
-        """Parse the URL to extract host and port."""
-        host, port_str = url.rsplit(":", 1)
-        port = int(port_str)
+    async def connect(self):
+        """Connect to the server."""
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setblocking(False)  # Non-blocking socket
+        try:
+            self.socket.connect((self.host, self.port))
+        except BlockingIOError:
+            pass
 
-        # Adjust port for WebSocket on browser
-        if __WASM__ and __import__("platform").is_browser:
-            if not url.startswith("://"):
-                port += 20000
-            else:
-                _, host = host.split("://", 1)
+        self.running = True
+        self.logger.info(f"Connecting to {self.host}:{self.port}...")
 
-        return host, port
-
-    async def _aio_sock_open(self, sock, host, port):
-        """Asynchronous socket connection."""
-        while True:
-            try:
-                sock.connect((host, port))
-                break  # Exit loop upon successful connection
-            except BlockingIOError:
-                await aio.sleep(0)  # Yield control to the event loop
-            except OSError as e:
-                # 30 emsdk, 106 linux means connected.
-                if e.errno in (30, 106):
-                    return sock
-                sys.print_exception(e)
-                if self.on_error:
-                    self.on_error(e)
-                return None
-
-        return sock
-
-    async def _connect(self):
-        """Establish WebSocket connection."""
-        self.socket = socket.socket()
-        sock = await self._aio_sock_open(self.socket, self.host, self.port)
-
-        if not sock:
-            if self.on_error:
-                self.on_error("Failed to connect to WebSocket server.")
+    async def receive(self):
+        self.logger.debug("Starting receive loop...")
+        """Asynchronously receive data from the socket."""
+        if self.socket is None:
+            self.logger.error("Socket is not initialized.")
             return
 
-        self.connected = True
-        if self.on_open:
-            self.on_open()
-
-        await self._receive_loop(sock)
-
-    async def _receive_loop(self, sock):
-        """Continuously receive data from the WebSocket."""
-        peek = []
-        try:
-            while not aio.exit and self.connected and sock:
-                rr, _, _ = select.select([sock], [], [], 0)
-                if rr:
-                    try:
-                        one = sock.recv(1, socket.MSG_DONTWAIT)
-                        if one:
-                            peek.append(one)
-                            if one == b"\n":
-                                self.rxq.append(b"".join(peek))
-                                peek.clear()
-                                self._process_message()
+        while self.running:
+            # self.logger.debug("Receiving data...")
+            try:
+                ready_to_read, _, _ = select.select([self.socket], [], [], 0.1)
+                if ready_to_read:
+                    data = self.socket.recv(4096)  # Receive up to 4096 bytes
+                    self.logger.debug(f"Received data: {data}")
+                    if data:
+                        decoded_message = data.decode("utf-8")
+                        if self.on_message_callback:
+                            self.on_message_callback(decoded_message)
                         else:
-                            # Connection closed by server
-                            self.close()
-                            return
-                    except BlockingIOError:
-                        await aio.sleep(0)
-                    except Exception as e:
-                        sys.print_exception(e)
-                        if self.on_error:
-                            self.on_error(e)
-                        self.close()
+                            self.logger.info(f"Received message: {decoded_message}")
+                    else:
+                        # Socket closed
+                        self.logger.info("Server closed the connection.")
+                        await self.close()
                         return
-                else:
-                    await aio.sleep(0)
-        finally:
-            self.close()
+                await asyncio.sleep(0.01)  # Yield to the event loop
 
-    def _process_message(self):
-        """Process received messages from the queue."""
-        while self.rxq:
-            message = self.rxq.pop(0)
-            if self.on_message:
-                try:
-                    self.on_message(message.decode())  # Assuming text data
-                except Exception as e:
-                    sys.print_exception(e)
-                    if self.on_error:
-                        self.on_error(e)
-
-    def send(self, data):
-        """Send data to the WebSocket server."""
-        if not self.connected:
-            print("WebSocket is not connected.")
-            return
-
-        try:
-            if isinstance(data, str):
-                self.txq.append(data.encode())
-            else:
-                self.txq.append(data)
-
-            while self.txq:
-                self.socket.send(self.txq.pop(0))
-
-        except Exception as e:
-            sys.print_exception(e)
-            if self.on_error:
-                self.on_error(e)
-            self.close()
-
-    def close(self):
-        """Close the WebSocket connection."""
-        if self.connected:
-            self.connected = False
-            try:
-                if self.socket:
-                    self.socket.close()
+            except ConnectionResetError:
+                self.logger.error("Connection reset by server.")
+                await self.close()
+                return
             except Exception as e:
-                sys.print_exception(e)
-                if self.on_error:
-                    self.on_error(e)
+                self.logger.error(f"Error receiving data: {e}")
+                await self.close()
+                return
+
+    async def close(self):
+        if self.socket:
+            self.running = False
+            try:
+                # Send a close frame (simplified)
+                self.socket.send(struct.pack("!BB", 0x88, 0x00))
+                # Wait for close frame from server (simplified)
+                self.socket.settimeout(2.0)
+                self.socket.recv(1024)
+            except Exception:
+                pass  # Ignore errors during close
             finally:
+                self.socket.close()
                 self.socket = None
-            if self.on_close:
-                self.on_close()
+                self.logger.info("Connection closed.")
 
-    async def __aenter__(self):
-        """Asynchronous context manager enter."""
-        await self._connect()
-        return self
+    async def reconnect(self):
+        await self.close()
+        await asyncio.sleep(5)  # Wait before attempting to reconnect
+        await self.connect()
 
-    async def __aexit__(self, exc_type, exc, tb):
-        """Asynchronous context manager exit."""
-        self.close()
+    def send(self, message):
+        if self.socket:
+            try:
+                self.socket.send((message + "\n").encode("utf-8"))
+            except Exception as e:
+                self.logger.error(f"Error sending data: {e}")
+                asyncio.create_task(self.reconnect())
 
-
-# Example usage:
-async def main():
-    """Main function to demonstrate WebSocket usage."""
-    ws_url = "ws://echo.websocket.events:80"  # Replace with your WebSocket URL
-
-    def on_open():
-        print("WebSocket connected!")
-        ws.send("Hello, WebSocket server!")
-
-    def on_message(message):
-        print("Received:", message)
-        ws.close()  # Close after receiving one message for demonstration
-
-    def on_close():
-        print("WebSocket closed.")
-
-    def on_error(error):
-        print("WebSocket error:", error)
-
-    ws = WebSocket(ws_url, on_open, on_message, on_close, on_error)
-
-    # Keep the program running to allow WebSocket events to be processed
-    await asyncio.sleep(5)
-
-
-if __name__ == "__main__":
-    aio.run(main())
+    def set_message_callback(self, callback):
+        """Set the callback function for incoming messages."""
+        self.on_message_callback = callback

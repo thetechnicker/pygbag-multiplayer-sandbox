@@ -13,7 +13,12 @@ class BrowserConsoleHandler(logging.Handler):
     def emit(self, record):
         if sys.platform == "emscripten":
             log_entry = self.format(record)
-            platform.console.log(log_entry)
+            if record.levelno >= logging.ERROR:
+                platform.console.error(log_entry)
+            elif record.levelno >= logging.WARNING:
+                platform.console.warn(log_entry)
+            else:
+                platform.console.log(log_entry)
 
 
 # Initialize logging
@@ -49,26 +54,6 @@ DARK_BLUE = (25, 25, 112)
 # Fonts
 FONT_SMALL = pygame.font.Font(None, 32)
 FONT_LARGE = pygame.font.Font(None, 48)
-
-
-class Button:
-    def __init__(self, x, y, width, height, text, color, text_color, action):
-        self.rect = pygame.Rect(x, y, width, height)
-        self.text = text
-        self.color = color
-        self.text_color = text_color
-        self.action = action
-
-    def draw(self, surface):
-        pygame.draw.rect(surface, self.color, self.rect)
-        text_surface = FONT_SMALL.render(self.text, True, self.text_color)
-        text_rect = text_surface.get_rect(center=self.rect.center)
-        surface.blit(text_surface, text_rect)
-
-    def handle_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.rect.collidepoint(event.pos):
-                self.action()
 
 
 class WebSocketClient:
@@ -178,6 +163,68 @@ async def socket_handler(ws_client):
     await ws_client.receive()
 
 
+class Button:
+    def __init__(self, x, y, width, height, text, color, text_color, action):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.color = color
+        self.text_color = text_color
+        self.action = action
+
+    def draw(self, surface):
+        pygame.draw.rect(surface, self.color, self.rect)
+        text_surface = FONT_SMALL.render(self.text, True, self.text_color)
+        text_rect = text_surface.get_rect(center=self.rect.center)
+        surface.blit(text_surface, text_rect)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.rect.collidepoint(event.pos):
+                self.action()
+
+
+class ListView:
+    def __init__(self, x, y, width, height, items, item_height=30):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.items = items
+        self.item_height = item_height
+        self.scroll_offset = 0
+        self.scroll_speed = 10
+
+    def draw(self, surface):
+        pygame.draw.rect(surface, GRAY, self.rect)
+        pygame.draw.rect(surface, BLACK, self.rect, 2)
+
+        start_index = self.scroll_offset // self.item_height
+        end_index = start_index + self.rect.height // self.item_height
+
+        for i, item in enumerate(self.items[start_index:end_index], start=start_index):
+            item_rect = pygame.Rect(
+                self.rect.x,
+                self.rect.y + (i - start_index) * self.item_height,
+                self.rect.width,
+                self.item_height,
+            )
+            pygame.draw.rect(surface, WHITE, item_rect)
+            text_surface = FONT_SMALL.render(item, True, BLACK)
+            surface.blit(text_surface, (item_rect.x + 5, item_rect.y + 5))
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 4:  # Scroll up
+                self.scroll_offset = max(self.scroll_offset - self.scroll_speed, 0)
+            elif event.button == 5:  # Scroll down
+                max_offset = max(
+                    0, len(self.items) * self.item_height - self.rect.height
+                )
+                self.scroll_offset = min(
+                    self.scroll_offset + self.scroll_speed, max_offset
+                )
+
+    def update_items(self, new_itemlist):
+        self.items = new_itemlist
+
+
 class LobbyScreen:
     def __init__(self, ws_client):
         self.ws_client: WebSocketClient = ws_client
@@ -186,6 +233,7 @@ class LobbyScreen:
         self.message_log = []
         self.input_box = pygame.Rect(50, 500, 500, 32)
         self.input_text = ""
+        self.server_list_view = ListView(50, 120, 700, 200, self.server_list)
         self.buttons = [
             Button(
                 50, 50, 200, 50, "Create Server", DARK_BLUE, BLACK, self.create_server
@@ -215,6 +263,7 @@ class LobbyScreen:
             if "servers" in data:
                 self.server_list = data["servers"]
                 logger.debug(f"Server list: {self.server_list}")
+                self.server_list_view.update_items(self.server_list)
             if "server_id" in data:
                 self.current_server_id = data["server_id"]
             if "message" in data:
@@ -234,6 +283,7 @@ class LobbyScreen:
     def handle_event(self, event):
         for button in self.buttons:
             button.handle_event(event)
+        self.server_list_view.handle_event(event)
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN:
                 if self.input_text.strip():
@@ -252,12 +302,13 @@ class LobbyScreen:
             button.draw(surface)
 
         # Draw server list
-        pygame.draw.rect(surface, GRAY, (50, 120, 700, 200))
-        text = FONT_LARGE.render("Available Servers", True, BLACK)
-        surface.blit(text, (60, 130))
-        for i, server in enumerate(self.server_list):
-            text = FONT_SMALL.render(f"Server {server}", True, BLACK)
-            surface.blit(text, (60, 180 + i * 30))
+        self.server_list_view.draw(surface)
+        # pygame.draw.rect(surface, GRAY, (50, 120, 700, 200))
+        # text = FONT_LARGE.render("Available Servers", True, BLACK)
+        # surface.blit(text, (60, 130))
+        # for i, server in enumerate(self.server_list):
+        #     text = FONT_SMALL.render(f"Server {server}", True, BLACK)
+        #     surface.blit(text, (60, 180 + i * 30))
 
         # Draw message log
         pygame.draw.rect(surface, GRAY, (50, 340, 700, 150))
