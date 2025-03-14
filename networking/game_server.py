@@ -14,7 +14,7 @@ logging.basicConfig(
 
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 try:
-    ssl_context.load_cert_chain(certfile="certs/server.pem", keyfile="certs/key.pem")
+    ssl_context.load_cert_chain(certfile="certs/cert.pem", keyfile="certs/key.pem")
     logging.info("SSL context loaded successfully")
 except Exception as e:
     logging.error(f"Failed to load SSL context: {str(e)}")
@@ -111,6 +111,7 @@ class MainServer:
             while True:
                 try:
                     message = await websocket.recv()
+                    logging.debug(f"Received message: {message}")
                     data = json.loads(message)
                     command = data.get("command")
 

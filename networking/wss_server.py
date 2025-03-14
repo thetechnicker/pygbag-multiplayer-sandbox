@@ -12,7 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger("wss_server")
 
 
-async def echo(websocket, path):
+async def echo(websocket, path=None):
     client = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
     logger.info(f"New connection from {client}")
     try:
@@ -32,9 +32,7 @@ async def echo(websocket, path):
 async def main():
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     try:
-        ssl_context.load_cert_chain(
-            certfile="certs/server.pem", keyfile="certs/key.pem"
-        )
+        ssl_context.load_cert_chain(certfile="certs/cert.pem", keyfile="certs/key.pem")
         logger.info("SSL context loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load SSL context: {str(e)}")
