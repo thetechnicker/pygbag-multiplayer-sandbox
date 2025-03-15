@@ -193,6 +193,7 @@ class ListView:
         self.scrollbar_width = 10
         self.dragging = False
         self.drag_offset_y = 0
+        self.scrollbar_rect = None
 
     def draw(self, surface):
         pygame.draw.rect(surface, GRAY, self.rect)
@@ -233,12 +234,16 @@ class ListView:
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1 and self.scrollbar_rect.collidepoint(event.pos):
+            if (
+                self.scrollbar_rect
+                and event.button == 1
+                and self.scrollbar_rect.collidepoint(event.pos)
+            ):
                 self.dragging = True
                 self.drag_offset_y = event.pos[1] - self.scrollbar_rect.y
-            elif event.button == 4:  # Scroll up
+            elif event.button == 4 and self.rect.collidepoint(event.pos):  # Scroll up
                 self.scroll_offset = max(self.scroll_offset - self.scroll_speed, 0)
-            elif event.button == 5:  # Scroll down
+            elif event.button == 5 and self.rect.collidepoint(event.pos):  # Scroll down
                 max_offset = max(
                     0, len(self.items) * self.item_height - self.rect.height
                 )
@@ -272,6 +277,7 @@ class LobbyScreen:
         self.input_box = pygame.Rect(50, 500, 500, 32)
         self.input_text = ""
         self.server_list_view = ListView(50, 120, 700, 200, self.server_list)
+        self.message_log_view = ListView(50, 340, 700, 200, self.message_log)
         self.buttons = [
             Button(
                 50, 50, 200, 50, "Create Server", DARK_BLUE, BLACK, self.create_server
@@ -305,9 +311,10 @@ class LobbyScreen:
             if "server_id" in data:
                 self.current_server_id = data["server_id"]
             if "message" in data:
-                self.message_log.append(data["message"])
-                if len(self.message_log) > 10:
-                    self.message_log.pop(0)
+                logger.info(f"Received message: {data['message']}")
+                self.message_log.insert(0, f'{data["message"]}')
+                # if len(self.message_log) > 10:
+                #     self.message_log.pop(-1)
         except json.JSONDecodeError:
             logger.error(f"Invalid JSON received: {message}")
 
@@ -322,6 +329,7 @@ class LobbyScreen:
         for button in self.buttons:
             button.handle_event(event)
         self.server_list_view.handle_event(event)
+        self.message_log_view.handle_event(event)
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN:
                 if self.input_text.strip():
@@ -349,12 +357,14 @@ class LobbyScreen:
         #     surface.blit(text, (60, 180 + i * 30))
 
         # Draw message log
-        pygame.draw.rect(surface, GRAY, (50, 340, 700, 150))
-        text = FONT_LARGE.render("Message Log", True, BLACK)
-        surface.blit(text, (60, 350))
-        for i, message in enumerate(self.message_log):
-            text = FONT_SMALL.render(message, True, BLACK)
-            surface.blit(text, (60, 390 + i * 30))
+        # pygame.draw.rect(surface, GRAY, (50, 340, 700, 150))
+        # text = FONT_LARGE.render("Message Log", True, BLACK)
+        # surface.blit(text, (60, 350))
+        # for i, message in enumerate(self.message_log):
+        #     text = FONT_SMALL.render(message, True, BLACK)
+        #     surface.blit(text, (60, 390 + i * 30))
+
+        self.message_log_view.draw(surface)
 
         # Draw input box
         pygame.draw.rect(surface, BLACK, self.input_box, 2)
