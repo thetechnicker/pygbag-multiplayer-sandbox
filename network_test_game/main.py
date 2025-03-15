@@ -276,6 +276,8 @@ class LobbyScreen:
         self.message_log = []
         self.input_box = pygame.Rect(50, 500, 500, 32)
         self.input_text = ""
+        self.server_id_input_box = pygame.Rect(600, 500, 100, 32)
+        self.server_id_input_text = ""
         self.server_list_view = ListView(50, 120, 700, 200, self.server_list)
         self.message_log_view = ListView(50, 340, 700, 200, self.message_log)
         self.buttons = [
@@ -286,6 +288,9 @@ class LobbyScreen:
                 300, 50, 200, 50, "List Servers", DARK_BLUE, BLACK, self.list_servers
             ),
             Button(550, 50, 200, 50, "Join Server", DARK_BLUE, BLACK, self.join_server),
+            Button(
+                50, 600, 200, 50, "Nuke Servers", DARK_BLUE, BLACK, self.nuke_servers
+            ),
         ]
 
     def create_server(self):
@@ -295,10 +300,14 @@ class LobbyScreen:
         self.ws_client.send('{"command": "list"}')
 
     def join_server(self):
-        if self.current_server_id is not None:
+        if self.server_id_input_text.isdigit():
+            self.current_server_id = int(self.server_id_input_text)
             self.ws_client.send(
                 f'{{"command": "join", "server_id": {self.current_server_id}}}'
             )
+
+    def nuke_servers(self):
+        self.ws_client.send('{"command": "nuke"}')
 
     def handle_message(self, message):
         try:
@@ -341,6 +350,13 @@ class LobbyScreen:
                 self.input_text = self.input_text[:-1]
             else:
                 self.input_text += event.unicode
+            if event.key == pygame.K_TAB:
+                if self.server_id_input_text.strip():
+                    self.server_id_input_text = ""
+            elif event.key == pygame.K_BACKSPACE:
+                self.server_id_input_text = self.server_id_input_text[:-1]
+            else:
+                self.server_id_input_text += event.unicode
 
     def draw(self, surface):
         surface.fill(WHITE)
@@ -370,6 +386,16 @@ class LobbyScreen:
         pygame.draw.rect(surface, BLACK, self.input_box, 2)
         text_surface = FONT_SMALL.render(self.input_text, True, BLACK)
         surface.blit(text_surface, (self.input_box.x + 5, self.input_box.y + 5))
+
+        # Draw server ID input box
+        pygame.draw.rect(surface, BLACK, self.server_id_input_box, 2)
+        server_id_text_surface = FONT_SMALL.render(
+            self.server_id_input_text, True, BLACK
+        )
+        surface.blit(
+            server_id_text_surface,
+            (self.server_id_input_box.x + 5, self.server_id_input_box.y + 5),
+        )
 
         # Draw current server info
         if self.current_server_id is not None:

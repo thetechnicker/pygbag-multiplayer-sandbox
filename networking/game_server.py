@@ -131,6 +131,13 @@ class MainServer:
                         await websocket.send(
                             json.dumps({"message": "Message received"})
                         )
+                    elif command == "nuke":
+                        await websocket.send(json.dumps({"message": "Nuking server"}))
+                        for server_id, server_data in self.echo_servers.items():
+                            server, thread = server_data
+                            server.stop()
+                            thread.join()
+                            logging.info(f"Stopped server {server_id}")
                     else:
                         await websocket.send(json.dumps({"error": "Invalid command"}))
                 except json.JSONDecodeError as e:
