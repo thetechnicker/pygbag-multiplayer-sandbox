@@ -102,7 +102,7 @@ class MainServer:
     def __init__(self, host="localhost", port=8765):
         self.host = host
         self.port = port
-        self.echo_servers = {}
+        self.echo_servers: dict[any, tuple[EchoServer, threading.Thread]] = {}
         self.next_server_id = 1
         self.lock = threading.Lock()
 
@@ -134,8 +134,7 @@ class MainServer:
                     elif command == "nuke":
                         await websocket.send(json.dumps({"message": "Nuking server"}))
                         for server_id, server_data in self.echo_servers.items():
-                            server, thread = server_data
-                            server.stop()
+                            _, thread = server_data
                             thread.join()
                             logging.info(f"Stopped server {server_id}")
                     else:
