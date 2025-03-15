@@ -27,6 +27,7 @@ class EchoServer:
         self.port = port
         self.clients = set()
         self.lock = threading.Lock()
+        self.running = True
 
     async def handle_client(self, websocket):
         with self.lock:
@@ -36,6 +37,9 @@ class EchoServer:
             )
         try:
             async for message in websocket:
+                if not self.running:
+                    logging.info(f"Server stopped. Closing connection")
+                    break
                 try:
                     data = json.loads(message)
                     data["echo"] = data["message"]
@@ -85,11 +89,11 @@ class EchoServer:
 
     async def start(self):
         try:
-            server = await websockets.serve(
+            self.server = await websockets.serve(
                 self.handle_client, self.host, self.port, ssl=ssl_context
             )
             logging.info(f"Echo server started on ws://{self.host}:{self.port}")
-            await server.wait_closed()
+            await self.server.wait_closed()
         except Exception as e:
             logging.error(f"Error starting echo server: {e}")
 
@@ -132,11 +136,19 @@ class MainServer:
                             json.dumps({"message": "Message received"})
                         )
                     elif command == "nuke":
+                        logging.info(f"Nuking server")
                         await websocket.send(json.dumps({"message": "Nuking server"}))
                         for server_id, server_data in self.echo_servers.items():
-                            _, thread = server_data
-                            thread.join()
+                            server, thread = server_data
+                            # server.broadcast()
+                            server.running = False
+                            # thread.join()
                             logging.info(f"Stopped server {server_id}")
+                        self.echo_servers.clear()
+                        await websocket.send(
+                            json.dumps({"message": "All servers nuked"})
+                        )
+                        logging.info(f"All servers nuked")
                     else:
                         await websocket.send(json.dumps({"error": "Invalid command"}))
                 except json.JSONDecodeError as e:
@@ -194,6 +206,9 @@ class MainServer:
                         {
                             "message": f"Joined Echo Server {server_id}",
                             "address": address,
+                            "host": self.host,
+                            "port": server.port,
+                            "server_id": server_id,
                         }
                     )
                 )

@@ -17,6 +17,8 @@ class BrowserConsoleHandler(logging.Handler):
                 platform.console.error(log_entry)
             elif record.levelno >= logging.WARNING:
                 platform.console.warn(log_entry)
+            elif record.levelno >= logging.DEBUG:
+                platform.console.debug(log_entry)
             else:
                 platform.console.log(log_entry)
 
@@ -48,6 +50,7 @@ PORT = 8765
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GRAY = (200, 200, 200)
+LIGHT_GRAY = (220, 220, 220)
 LIGHT_BLUE = (173, 216, 230)
 DARK_BLUE = (25, 25, 112)
 
@@ -84,7 +87,7 @@ class WebSocketClient:
             pass
 
         self.running = True
-        logger.info(f"Connecting to {self.host}:{self.port}...")
+        logger.debug(f"Connecting to {self.host}:{self.port}...")
 
     async def receive(self):
         logger.debug("Starting receive loop...")
@@ -105,10 +108,10 @@ class WebSocketClient:
                         if self.on_message_callback:
                             self.on_message_callback(decoded_message)
                         else:
-                            logger.info(f"Received message: {decoded_message}")
+                            logger.debug(f"Received message: {decoded_message}")
                     else:
                         # Socket closed
-                        logger.info("Server closed the connection.")
+                        logger.debug("Server closed the connection.")
                         await self.close()
                         return
                 await asyncio.sleep(0.01)  # Yield to the event loop
@@ -136,7 +139,7 @@ class WebSocketClient:
             finally:
                 self.socket.close()
                 self.socket = None
-                logger.info("Connection closed.")
+                logger.debug("Connection closed.")
 
     async def reconnect(self):
         await self.close()
@@ -201,7 +204,7 @@ class ListView:
 
         start_index = self.scroll_offset // self.item_height
         end_index = start_index + self.rect.height // self.item_height
-        logger.debug(f"Drawing items {start_index} to {end_index}")
+        # logger.debug(f"Drawing items {start_index} to {end_index}")
 
         for i, item in enumerate(self.items[start_index:end_index], start=start_index):
             item_rect = pygame.Rect(
@@ -269,12 +272,13 @@ class ListView:
 
 
 class InputBox:
-    def __init__(self, x, y, width, height, text=""):
+    def __init__(self, x, y, width, height, text="", on_enter_callback=None):
         self.rect = pygame.Rect(x, y, width, height)
         self.color = BLACK
         self.text = text
         self.txt_surface = FONT_SMALL.render(text, True, self.color)
         self.active = False
+        self.on_enter_callback = on_enter_callback
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -289,31 +293,47 @@ class InputBox:
         if event.type == pygame.KEYDOWN:
             if self.active:
                 if event.key == pygame.K_RETURN:
+                    if self.on_enter_callback:
+                        self.on_enter_callback()
                     self.text = ""
+                elif event.key == pygame.K_ESCAPE:
+                    self.text = ""
+                    # self.active = False
                 elif event.key == pygame.K_BACKSPACE:
                     self.text = self.text[:-1]
                 else:
                     self.text += event.unicode
                 # Re-render the text.
-                self.txt_surface = FONT_SMALL.render(self.text, True, self.color)
+                self.txt_surface = FONT_SMALL.render(
+                    self.text,
+                    True,
+                    self.color,
+                )
 
     def draw(self, screen):
+        pygame.draw.rect(screen, LIGHT_GRAY if self.active else WHITE, self.rect)
         # Blit the text.
         screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 5))
         # Blit the rect.
         pygame.draw.rect(screen, self.color, self.rect, 2)
 
+    def set_on_enter_callback(self, callback):
+        self.on_enter_callback = callback
+
 
 class LobbyScreen:
     def __init__(self, ws_client):
         self.ws_client: WebSocketClient = ws_client
+        self.echo_client: WebSocketClient = None
         self.server_list = []
         self.current_server_id = None
         self.message_log = []
-        self.input_box = InputBox(50, 500, 500, 32)
-        self.server_id_input_box = InputBox(600, 500, 100, 32)
         self.server_list_view = ListView(50, 120, 700, 200, self.server_list)
         self.message_log_view = ListView(50, 340, 700, 200, self.message_log)
+        self.input_box = InputBox(
+            50, 550, 500, 32, on_enter_callback=self.send_main_message
+        )
+        self.server_id_input_box = InputBox(600, 550, 100, 32)
         self.buttons = [
             Button(
                 50, 50, 170, 50, "Create Server", DARK_BLUE, BLACK, self.create_server
@@ -326,6 +346,19 @@ class LobbyScreen:
                 590, 50, 170, 50, "Nuke Servers", DARK_BLUE, BLACK, self.nuke_servers
             ),
         ]
+
+    def send_main_message(self):
+        logger.debug(f"Sending message: {self.input_box.text}")
+        if self.input_box.text:
+            logger.debug(f"Sending message: {self.input_box.text}")
+            self.ws_client.send(
+                f'{{"command": "message", "message": "{self.input_box.text}"}}'
+            )
+
+    def send_echo_message(self):
+        logger.debug(f"Sending message: {self.input_box.text}")
+        if self.input_box.text:
+            self.echo_client.send(self.input_box.text)
 
     def create_server(self):
         self.ws_client.send('{"command": "create"}')
@@ -341,7 +374,7 @@ class LobbyScreen:
             )
 
     def nuke_servers(self):
-        logger.info("Nuking servers...")
+        logger.debug("Nuking servers...")
         self.ws_client.send('{"command": "nuke"}')
 
     def handle_message(self, message):
@@ -355,10 +388,19 @@ class LobbyScreen:
             if "server_id" in data:
                 self.current_server_id = data["server_id"]
             if "message" in data:
-                logger.info(f"Received message: {data['message']}")
+                logger.debug(f"Received message: {data['message']}")
                 self.message_log.insert(0, f'{data["message"]}')
                 # if len(self.message_log) > 10:
                 #     self.message_log.pop(-1)
+            if "host" in data and "port" in data:
+                logger.debug(
+                    f"Connecting to echo server: {data['host']}:{data['port']}"
+                )
+                self.echo_client = WebSocketClient(
+                    data["host"], int(data["port"]), self.handle_message
+                )
+                asyncio.create_task(socket_handler(self.echo_client))
+                self.input_box.set_on_enter_callback(self.send_echo_message)
         except json.JSONDecodeError:
             logger.error(f"Invalid JSON received: {message}")
 
@@ -403,7 +445,7 @@ async def main():
     lobby = LobbyScreen(ws_client)
 
     def on_message(message):
-        logger.info(f"Received message: {message}")
+        logger.debug(f"Received message: {message}")
         lobby.handle_message(message)
 
     ws_client.set_message_callback(on_message)
