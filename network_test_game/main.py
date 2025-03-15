@@ -197,6 +197,7 @@ class ListView:
 
         start_index = self.scroll_offset // self.item_height
         end_index = start_index + self.rect.height // self.item_height
+        logger.debug(f"Drawing items {start_index} to {end_index}")
 
         for i, item in enumerate(self.items[start_index:end_index], start=start_index):
             item_rect = pygame.Rect(
@@ -205,8 +206,8 @@ class ListView:
                 self.rect.width,
                 self.item_height,
             )
-            pygame.draw.rect(surface, WHITE, item_rect)
-            text_surface = FONT_SMALL.render(item, True, BLACK)
+            # pygame.draw.rect(surface, WHITE, item_rect)
+            text_surface = FONT_SMALL.render(f"{item}", True, BLACK)
             surface.blit(text_surface, (item_rect.x + 5, item_rect.y + 5))
 
     def handle_event(self, event):
@@ -341,14 +342,27 @@ async def main():
 
     ws_client.set_message_callback(on_message)
     socket_task = asyncio.create_task(socket_handler(ws_client))
-
     running = True
+
+    # async def periodic_list_request():
+    #     nonlocal running
+    #     while running:
+    #         while not ws_client.socket:
+    #             await asyncio.sleep(1)
+    #         ws_client.send('{"command": "list"}')
+    #         await asyncio.sleep(2)
+
+    # list_request_task = asyncio.create_task(periodic_list_request())
+
     while running:
+
         for event in pygame.event.get():
             # if event.type == pygame.QUIT:
             #     running = False
             #     break
             lobby.handle_event(event)
+        if pygame.time.get_ticks() % 2000 < 100:
+            ws_client.send('{"command": "list"}')
         lobby.handle_mouse_pos(pygame.mouse.get_pos())
         lobby.draw(screen)
         pygame.display.flip()
@@ -357,6 +371,7 @@ async def main():
 
     await ws_client.close()
     await socket_task
+    # await list_request_task
     pygame.quit()
 
 
