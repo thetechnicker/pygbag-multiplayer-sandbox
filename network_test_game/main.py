@@ -69,13 +69,14 @@ class WebSocketClient:
     use a proper WebSocket library like 'websockets' or 'aiohttp'.
     """
 
-    def __init__(self, host, port, on_message_callback=None):
+    def __init__(self, host, port, on_message_callback=None, socked_name="ws"):
         self.host = host
         self.port = port
         self.socket = None
         self.running = False
         self.on_message_callback = on_message_callback
         self.receive_buffer = b""  # Accumulate received data
+        self.socket_name = socked_name
 
     async def connect(self):
         """Connect to the server."""
@@ -106,7 +107,7 @@ class WebSocketClient:
                     if data:
                         decoded_message = data.decode("utf-8")
                         if self.on_message_callback:
-                            self.on_message_callback(decoded_message)
+                            self.on_message_callback(decoded_message, self.socket_name)
                         else:
                             logger.debug(f"Received message: {decoded_message}")
                     else:
@@ -379,10 +380,12 @@ class LobbyScreen:
         logger.debug("Nuking servers...")
         self.ws_client.send('{"command": "nuke"}')
 
-    def handle_message(self, message):
+    def handle_message(self, message, socket_name):
         try:
             data = json.loads(message)
-            logger.debug(f"Received data in LobbyScreen.handle_message: {data}")
+            logger.debug(
+                f"Received data in LobbyScreen.handle_message: {data}, from socket: {socket_name}"
+            )
             if "servers" in data:
                 self.server_list = data["servers"]
                 logger.debug(f"Server list: {self.server_list}")
@@ -394,12 +397,18 @@ class LobbyScreen:
                 self.message_log.insert(0, f'{data["message"]}')
                 # if len(self.message_log) > 10:
                 #     self.message_log.pop(-1)
+            if "echo" in data:
+                logger.debug(f"Received echo message: {data['echo']}")
+                self.message_log.insert(0, f'Echo: {data["echo"]}')
             if "host" in data and "port" in data:
                 logger.debug(
                     f"Connecting to echo server: {data['host']}:{data['port']}"
                 )
                 self.echo_client = WebSocketClient(
-                    data["host"], int(data["port"]), self.handle_message
+                    data["host"],
+                    int(data["port"]),
+                    self.handle_message,
+                    socked_name="echo",
                 )
                 asyncio.create_task(socket_handler(self.echo_client))
                 self.input_box.set_on_enter_callback(self.send_echo_message)
@@ -443,12 +452,12 @@ class LobbyScreen:
 
 
 async def main():
-    ws_client = WebSocketClient(HOST, PORT)
+    ws_client = WebSocketClient(HOST, PORT, socked_name="main")
     lobby = LobbyScreen(ws_client)
 
-    def on_message(message):
+    def on_message(message, socket_name):
         logger.debug(f"Received message: {message}")
-        lobby.handle_message(message)
+        lobby.handle_message(message, socket_name)
 
     ws_client.set_message_callback(on_message)
     socket_task = asyncio.create_task(socket_handler(ws_client))
