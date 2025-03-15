@@ -358,7 +358,9 @@ class LobbyScreen:
     def send_echo_message(self):
         logger.debug(f"Sending message: {self.input_box.text}")
         if self.input_box.text:
-            self.echo_client.send(self.input_box.text)
+            self.echo_client.send(
+                f'{{"command": "message", "message": "{self.input_box.text}"}}'
+            )
 
     def create_server(self):
         self.ws_client.send('{"command": "create"}')

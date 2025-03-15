@@ -1,3 +1,14 @@
+"""
+This script generates self-signed certificates for testing purposes. It fetches the user's location information
+based on their IP address and uses this information to populate the certificate fields.
+Functions:
+    get_location_info(): Fetches the user's location information (country, region, city) using the ipinfo.io API.
+    generate_self_signed_cert(common_name, country, state, city, output_key="key.pem", output_cert="cert.pem"):
+        Generates a self-signed certificate and saves the private key and certificate to specified files.
+Usage:
+    Run the script and follow the prompts to generate a self-signed certificate with location-based information.
+"""
+
 import datetime
 import ipaddress
 import requests
