@@ -77,6 +77,7 @@ class WebSocketClient:
         self.on_message_callback = on_message_callback
         self.receive_buffer = b""  # Accumulate received data
         self.socket_name = socked_name
+        self.buffer = ""
 
     async def connect(self):
         """Connect to the server."""
@@ -106,6 +107,17 @@ class WebSocketClient:
                     logger.debug(f"Received data: {data}")
                     if data:
                         decoded_message = data.decode("utf-8")
+                        self.buffer += decoded_message
+                        if decoded_message[-1] == "|":
+                            decoded_message = self.buffer
+                            self.buffer = ""
+                            decoded_message = decoded_message[:-1]
+                        else:
+                            continue
+
+                        logger.debug(
+                            f"Received message has ended with: {decoded_message[-1]}"
+                        )
                         if self.on_message_callback:
                             self.on_message_callback(decoded_message, self.socket_name)
                         else:
@@ -334,7 +346,7 @@ class LobbyScreen:
         self.input_box = InputBox(
             50, 550, 500, 32, on_enter_callback=self.send_main_message
         )
-        self.server_id_input_box = InputBox(600, 550, 100, 32)
+        self.server_id_input_box = InputBox(650, 550, 100, 32)
         self.buttons = [
             Button(
                 50, 50, 170, 50, "Create Server", DARK_BLUE, BLACK, self.create_server

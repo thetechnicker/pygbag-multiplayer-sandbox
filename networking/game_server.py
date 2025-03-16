@@ -48,10 +48,14 @@ class EchoServer:
                     await self.broadcast(response)
                 except json.JSONDecodeError as e:
                     logging.error(f"JSONDecodeError: {e}")
-                    await websocket.send(json.dumps({"error": "Invalid JSON format"}))
+                    await websocket.send(
+                        json.dumps({"error": "Invalid JSON format"}) + "|"
+                    )
                 except KeyError as e:
                     logging.error(f"KeyError: {e}")
-                    await websocket.send(json.dumps({"error": f"Missing key: {e}"}))
+                    await websocket.send(
+                        json.dumps({"error": f"Missing key: {e}"}) + "|"
+                    )
                 except Exception as e:
                     logging.exception(
                         f"Unexpected error processing message from {websocket.remote_address}"
@@ -127,17 +131,20 @@ class MainServer:
                             json.dumps(
                                 {"message": f"Created Echo Server", "address": address}
                             )
+                            + "|"
                         )
                     elif command == "join":
                         await self.join_echo_server(websocket, data.get("server_id"))
                     elif command == "message":
                         logging.info(f"Received message: {data.get('message')}")
                         await websocket.send(
-                            json.dumps({"message": "Message received"})
+                            json.dumps({"message": "Message received"}) + "|"
                         )
                     elif command == "nuke":
                         logging.info(f"Nuking server")
-                        await websocket.send(json.dumps({"message": "Nuking server"}))
+                        await websocket.send(
+                            json.dumps({"message": "Nuking server"}) + "|"
+                        )
                         for server_id, server_data in self.echo_servers.items():
                             server, thread = server_data
                             # server.broadcast()
@@ -146,17 +153,23 @@ class MainServer:
                             logging.info(f"Stopped server {server_id}")
                         self.echo_servers.clear()
                         await websocket.send(
-                            json.dumps({"message": "All servers nuked"})
+                            json.dumps({"message": "All servers nuked"}) + "|"
                         )
                         logging.info(f"All servers nuked")
                     else:
-                        await websocket.send(json.dumps({"error": "Invalid command"}))
+                        await websocket.send(
+                            json.dumps({"error": "Invalid command"}) + "|"
+                        )
                 except json.JSONDecodeError as e:
                     logging.error(f"JSONDecodeError: {e}")
-                    await websocket.send(json.dumps({"error": "Invalid JSON format"}))
+                    await websocket.send(
+                        json.dumps({"error": "Invalid JSON format"}) + "|"
+                    )
                 except KeyError as e:
                     logging.error(f"KeyError: {e}")
-                    await websocket.send(json.dumps({"error": f"Missing key: {e}"}))
+                    await websocket.send(
+                        json.dumps({"error": f"Missing key: {e}"}) + "|"
+                    )
                 except Exception as e:
                     logging.exception(
                         f"Unexpected error processing command from {websocket.remote_address}|{e}|"
@@ -180,10 +193,11 @@ class MainServer:
                         "clients": server.get_client_count(),
                     }
                 )  # Include client count
-        await websocket.send(json.dumps({"servers": server_list}))
+        await websocket.send(json.dumps({"servers": server_list}) + "|")
 
     async def create_echo_server(self):
-        echo_port = random.randint(9000, 9999)
+        echo_port = self.next_server_id + 9000 - 1
+        # echo_port = random.randint(9000, 9999)
         echo_server = EchoServer(self.host, echo_port)
         thread = threading.Thread(target=asyncio.run, args=(echo_server.start(),))
         thread.daemon = (
@@ -211,9 +225,10 @@ class MainServer:
                             "server_id": server_id,
                         }
                     )
+                    + "|"
                 )
             else:
-                await websocket.send(json.dumps({"error": "Server not found"}))
+                await websocket.send(json.dumps({"error": "Server not found"}) + "|")
 
     async def start(self):
         try:
