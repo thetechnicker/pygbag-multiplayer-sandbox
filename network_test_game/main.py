@@ -26,7 +26,7 @@ class BrowserConsoleHandler(logging.Handler):
 # Initialize logging
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[BrowserConsoleHandler()],
 )
 logger = logging.getLogger(__name__)
