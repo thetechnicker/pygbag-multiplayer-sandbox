@@ -1,14 +1,37 @@
-import asyncio
-import pygame
-import random
-import my_module
+# /// script
+# dependencies = [
+# "pygbag_network_utils",
+# ]
+# ///
+
 
 # Initialize Pygame
+import asyncio
+import logging
+import random
+
+import pygame
+
+import lobby
+import pygbag_network_utils
+from pygbag_network_utils.client.socket.websocket import WebSocketClient, socket_handler
+from pygbag_network_utils.client.gui.browser_console_handler import (
+    BrowserConsoleHandler,
+)
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[BrowserConsoleHandler()],
+)
+logger = logging.getLogger(__name__)
+
+
 pygame.init()
 
 # Screen dimensions
 # WIDTH, HEIGHT = 320, 240
-WIDTH, HEIGHT = 640, 480
+WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 # pygame.display.set_caption("Pong Game")
 clock = pygame.time.Clock()
@@ -56,10 +79,61 @@ except FileNotFoundError:
     )  # Fallback to default font if custom font is missing.
 
 
+def game():
+    global ball_vel_x, ball_vel_y, left_score, right_score  # Get keys for paddle movement
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_w] and left_paddle.top > 0:
+        left_paddle.y -= PADDLE_SPEED
+    if keys[pygame.K_s] and left_paddle.bottom < HEIGHT:
+        left_paddle.y += PADDLE_SPEED
+    if keys[pygame.K_UP] and right_paddle.top > 0:
+        right_paddle.y -= PADDLE_SPEED
+    if keys[pygame.K_DOWN] and right_paddle.bottom < HEIGHT:
+        right_paddle.y += PADDLE_SPEED
+
+    # Move the ball
+    ball.x += ball_vel_x
+    ball.y += ball_vel_y
+
+    # Ball collision with top and bottom walls
+    if ball.top <= 0 or ball.bottom >= HEIGHT:
+        ball_vel_y *= -1
+
+    # Ball collision with paddles
+    if ball.colliderect(left_paddle) or ball.colliderect(right_paddle):
+        ball_vel_x *= -1
+
+    # Ball out of bounds (scoring)
+    if ball.left <= 0:
+        right_score += 1
+        reset_ball()
+    if ball.right >= WIDTH:
+        left_score += 1
+        reset_ball()
+
+    # Draw everything
+    screen.fill(BLACK)
+    pygame.draw.rect(screen, WHITE, left_paddle)
+    pygame.draw.rect(screen, WHITE, right_paddle)
+    pygame.draw.ellipse(screen, WHITE, ball)
+    pygame.draw.aaline(screen, WHITE, (WIDTH // 2, 0), (WIDTH // 2, HEIGHT))
+
+    # Display scores
+    left_text = font.render(str(left_score), True, WHITE)
+    right_text = font.render(str(right_score), True, WHITE)
+    screen.blit(left_text, (WIDTH // 4 - left_text.get_width() // 2, 20))
+    screen.blit(right_text, (3 * WIDTH // 4 - right_text.get_width() // 2, 20))
+
+
 async def main():
     global ball_vel_x, ball_vel_y, left_score, right_score
 
     running = True
+
+    ws_client = WebSocketClient("localhost", 8765)
+    lobby_screen = lobby.LobbyScreen(ws_client)
+    socket_task = asyncio.create_task(socket_handler(ws_client))
+    logger.debug("tests")
 
     while running:
         # Handle events
@@ -68,50 +142,10 @@ async def main():
                 running = False
             elif event.type == pygame.FINGERDOWN or event.type == pygame.FINGERMOTION:
                 handle_touch(event)
+            lobby_screen.handle_event(event)
 
-        # Get keys for paddle movement
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_w] and left_paddle.top > 0:
-            left_paddle.y -= PADDLE_SPEED
-        if keys[pygame.K_s] and left_paddle.bottom < HEIGHT:
-            left_paddle.y += PADDLE_SPEED
-        if keys[pygame.K_UP] and right_paddle.top > 0:
-            right_paddle.y -= PADDLE_SPEED
-        if keys[pygame.K_DOWN] and right_paddle.bottom < HEIGHT:
-            right_paddle.y += PADDLE_SPEED
-
-        # Move the ball
-        ball.x += ball_vel_x
-        ball.y += ball_vel_y
-
-        # Ball collision with top and bottom walls
-        if ball.top <= 0 or ball.bottom >= HEIGHT:
-            ball_vel_y *= -1
-
-        # Ball collision with paddles
-        if ball.colliderect(left_paddle) or ball.colliderect(right_paddle):
-            ball_vel_x *= -1
-
-        # Ball out of bounds (scoring)
-        if ball.left <= 0:
-            right_score += 1
-            reset_ball()
-        if ball.right >= WIDTH:
-            left_score += 1
-            reset_ball()
-
-        # Draw everything
-        screen.fill(BLACK)
-        pygame.draw.rect(screen, WHITE, left_paddle)
-        pygame.draw.rect(screen, WHITE, right_paddle)
-        pygame.draw.ellipse(screen, WHITE, ball)
-        pygame.draw.aaline(screen, WHITE, (WIDTH // 2, 0), (WIDTH // 2, HEIGHT))
-
-        # Display scores
-        left_text = font.render(str(left_score), True, WHITE)
-        right_text = font.render(str(right_score), True, WHITE)
-        screen.blit(left_text, (WIDTH // 4 - left_text.get_width() // 2, 20))
-        screen.blit(right_text, (3 * WIDTH // 4 - right_text.get_width() // 2, 20))
+        lobby_screen.draw(screen)
+        # game()
 
         # Update display and tick clock
         # pygame.display.flip()
