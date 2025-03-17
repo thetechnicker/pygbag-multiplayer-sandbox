@@ -1,5 +1,3 @@
-pygame
-pygbag
-requests
+pygame-ce
 websockets
-aiohttp
+pygbag
