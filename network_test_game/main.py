@@ -115,7 +115,9 @@ class WebSocketClient:
                         else:
                             continue
 
-                        logger.debug(f"Received message has ended with: {decoded_message[-1]}")
+                        logger.debug(
+                            f"Received message has ended with: {decoded_message[-1]}"
+                        )
                         if self.on_message_callback:
                             self.on_message_callback(decoded_message, self.socket_name)
                         else:
@@ -230,8 +232,14 @@ class ListView:
 
         # Draw scrollbar
         if len(self.items) * self.item_height > self.rect.height:
-            scrollbar_height = self.rect.height * (self.rect.height / (len(self.items) * self.item_height))
-            scrollbar_y = self.rect.y + (self.scroll_offset / (len(self.items) * self.item_height)) * self.rect.height
+            scrollbar_height = self.rect.height * (
+                self.rect.height / (len(self.items) * self.item_height)
+            )
+            scrollbar_y = (
+                self.rect.y
+                + (self.scroll_offset / (len(self.items) * self.item_height))
+                * self.rect.height
+            )
             self.scrollbar_rect = pygame.Rect(
                 self.rect.right - self.scrollbar_width,
                 scrollbar_y,
@@ -242,22 +250,34 @@ class ListView:
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.scrollbar_rect and event.button == 1 and self.scrollbar_rect.collidepoint(event.pos):
+            if (
+                self.scrollbar_rect
+                and event.button == 1
+                and self.scrollbar_rect.collidepoint(event.pos)
+            ):
                 self.dragging = True
                 self.drag_offset_y = event.pos[1] - self.scrollbar_rect.y
             elif event.button == 4 and self.rect.collidepoint(event.pos):  # Scroll up
                 self.scroll_offset = max(self.scroll_offset - self.scroll_speed, 0)
             elif event.button == 5 and self.rect.collidepoint(event.pos):  # Scroll down
-                max_offset = max(0, len(self.items) * self.item_height - self.rect.height)
-                self.scroll_offset = min(self.scroll_offset + self.scroll_speed, max_offset)
+                max_offset = max(
+                    0, len(self.items) * self.item_height - self.rect.height
+                )
+                self.scroll_offset = min(
+                    self.scroll_offset + self.scroll_speed, max_offset
+                )
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == 1:
                 self.dragging = False
         elif event.type == pygame.MOUSEMOTION:
             if self.dragging:
                 new_y = event.pos[1] - self.drag_offset_y
-                max_offset = max(0, len(self.items) * self.item_height - self.rect.height)
-                self.scroll_offset = int(((new_y - self.rect.y) / self.rect.height) * max_offset)
+                max_offset = max(
+                    0, len(self.items) * self.item_height - self.rect.height
+                )
+                self.scroll_offset = int(
+                    ((new_y - self.rect.y) / self.rect.height) * max_offset
+                )
                 self.scroll_offset = max(0, min(self.scroll_offset, max_offset))
 
     def update_items(self, new_itemlist):
@@ -323,25 +343,37 @@ class LobbyScreen:
         self.message_log = []
         self.server_list_view = ListView(50, 120, 700, 200, self.server_list)
         self.message_log_view = ListView(50, 340, 700, 200, self.message_log)
-        self.input_box = InputBox(50, 550, 500, 32, on_enter_callback=self.send_main_message)
+        self.input_box = InputBox(
+            50, 550, 500, 32, on_enter_callback=self.send_main_message
+        )
         self.server_id_input_box = InputBox(650, 550, 100, 32)
         self.buttons = [
-            Button(50, 50, 170, 50, "Create Server", DARK_BLUE, BLACK, self.create_server),
-            Button(230, 50, 170, 50, "List Servers", DARK_BLUE, BLACK, self.list_servers),
+            Button(
+                50, 50, 170, 50, "Create Server", DARK_BLUE, BLACK, self.create_server
+            ),
+            Button(
+                230, 50, 170, 50, "List Servers", DARK_BLUE, BLACK, self.list_servers
+            ),
             Button(410, 50, 170, 50, "Join Server", DARK_BLUE, BLACK, self.join_server),
-            Button(590, 50, 170, 50, "Nuke Servers", DARK_BLUE, BLACK, self.nuke_servers),
+            Button(
+                590, 50, 170, 50, "Nuke Servers", DARK_BLUE, BLACK, self.nuke_servers
+            ),
         ]
 
     def send_main_message(self):
         logger.debug(f"Sending message: {self.input_box.text}")
         if self.input_box.text:
             logger.debug(f"Sending message: {self.input_box.text}")
-            self.ws_client.send(f'{{"command": "message", "message": "{self.input_box.text}"}}')
+            self.ws_client.send(
+                f'{{"command": "message", "message": "{self.input_box.text}"}}'
+            )
 
     def send_echo_message(self):
         logger.debug(f"Sending message: {self.input_box.text}")
         if self.input_box.text:
-            self.echo_client.send(f'{{"command": "message", "message": "{self.input_box.text}"}}')
+            self.echo_client.send(
+                f'{{"command": "message", "message": "{self.input_box.text}"}}'
+            )
 
     def create_server(self):
         self.ws_client.send('{"command": "create"}')
@@ -352,7 +384,9 @@ class LobbyScreen:
     def join_server(self):
         if self.server_id_input_box.text.isdigit():
             self.current_server_id = int(self.server_id_input_box.text)
-            self.ws_client.send(f'{{"command": "join", "server_id": {self.current_server_id}}}')
+            self.ws_client.send(
+                f'{{"command": "join", "server_id": {self.current_server_id}}}'
+            )
 
     def nuke_servers(self):
         logger.debug("Nuking servers...")
@@ -361,7 +395,9 @@ class LobbyScreen:
     def handle_message(self, message, socket_name):
         try:
             data = json.loads(message)
-            logger.debug(f"Received data in LobbyScreen.handle_message: {data}, from socket: {socket_name}")
+            logger.debug(
+                f"Received data in LobbyScreen.handle_message: {data}, from socket: {socket_name}"
+            )
             if "servers" in data:
                 self.server_list = data["servers"]
                 logger.debug(f"Server list: {self.server_list}")
@@ -377,7 +413,9 @@ class LobbyScreen:
                 logger.debug(f"Received echo message: {data['echo']}")
                 self.message_log.insert(0, f'Echo: {data["echo"]}')
             if "host" in data and "port" in data:
-                logger.debug(f"Connecting to echo server: {data['host']}:{data['port']}")
+                logger.debug(
+                    f"Connecting to echo server: {data['host']}:{data['port']}"
+                )
                 self.echo_client = WebSocketClient(
                     data["host"],
                     int(data["port"]),
@@ -419,7 +457,9 @@ class LobbyScreen:
 
         # Draw current server info
         if self.current_server_id is not None:
-            text = FONT_SMALL.render(f"Connected to Server {self.current_server_id}", True, BLACK)
+            text = FONT_SMALL.render(
+                f"Connected to Server {self.current_server_id}", True, BLACK
+            )
             surface.blit(text, (50, 550))
 
 
