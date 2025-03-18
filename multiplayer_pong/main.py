@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import random
+import threading
 
 import pygame
 
@@ -49,9 +50,15 @@ BALL_SPEED_X = 4
 BALL_SPEED_Y = 4
 
 # Initialize paddles and ball positions
-left_paddle = pygame.Rect(20, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT)
-right_paddle = pygame.Rect(WIDTH - 30, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT)
-ball = pygame.Rect(WIDTH // 2 - BALL_SIZE // 2, HEIGHT // 2 - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE)
+left_paddle = pygame.Rect(
+    20, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT
+)
+right_paddle = pygame.Rect(
+    WIDTH - 30, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT
+)
+ball = pygame.Rect(
+    WIDTH // 2 - BALL_SIZE // 2, HEIGHT // 2 - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE
+)
 
 # Ball velocity
 ball_vel_x = BALL_SPEED_X * random.choice((-1, 1))
@@ -61,51 +68,48 @@ ball_vel_y = BALL_SPEED_Y * random.choice((-1, 1))
 left_score = 0
 right_score = 0
 
-GAME_STATE_LOBBY = 0
-GAME_STATE_PLAY = 1
+LOBBY_SCREEN = 0
+PLAY_SCREEN = 2
+WAIT_SCREEN = 1
+END_SCREEN = 3
 
 
 # Load custom font (ensure "font.ttf" exists in your project directory)
 try:
-    font = pygame.font.Font("font.ttf", 74)  # Replace "font.ttf" with your font file name.
+    font = pygame.font.Font(
+        "font.ttf", 74
+    )  # Replace "font.ttf" with your font file name.
 except FileNotFoundError:
-    font = pygame.font.Font(None, 74)  # Fallback to default font if custom font is missing.
+    font = pygame.font.Font(
+        None, 74
+    )  # Fallback to default font if custom font is missing.
 
 game_client = None
 player_name = None
+current_screen = LOBBY_SCREEN
+game_state = {
+    "player_0": {"pos": HEIGHT / 2, "score": 0},
+    "player_1": {"pos": HEIGHT / 2, "score": 0},
+    "ball": {"pos": [WIDTH / 2, HEIGHT / 2]},
+}
+state_lock = threading.Lock()
 
 
 def game():
-    global ball_vel_x, ball_vel_y, left_score, right_score, game_client, player_name  # Get keys for paddle movement
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_w] and left_paddle.top > 0:
-        left_paddle.y -= PADDLE_SPEED
-    if keys[pygame.K_s] and left_paddle.bottom < HEIGHT:
-        left_paddle.y += PADDLE_SPEED
-    if keys[pygame.K_UP] and right_paddle.top > 0:
-        right_paddle.y -= PADDLE_SPEED
-    if keys[pygame.K_DOWN] and right_paddle.bottom < HEIGHT:
-        right_paddle.y += PADDLE_SPEED
+    global ball_vel_x, ball_vel_y, left_score, right_score, game_client, player_name, game_state  # Get keys for paddle
+    with state_lock:
+        local_game_state = game_state.copy()
 
-    # Move the ball
-    ball.x += ball_vel_x
-    ball.y += ball_vel_y
+    left_score = local_game_state["player_0"]["score"]
+    right_score = local_game_state["player_1"]["score"]
 
-    # Ball collision with top and bottom walls
-    if ball.top <= 0 or ball.bottom >= HEIGHT:
-        ball_vel_y *= -1
+    left_paddle.centery = local_game_state["player_0"]["pos"]
+    right_paddle.centery = local_game_state["player_1"]["pos"]
 
-    # Ball collision with paddles
-    if ball.colliderect(left_paddle) or ball.colliderect(right_paddle):
-        ball_vel_x *= -1
-
-    # Ball out of bounds (scoring)
-    if ball.left <= 0:
-        right_score += 1
-        reset_ball()
-    if ball.right >= WIDTH:
-        left_score += 1
-        reset_ball()
+    ball.center = (
+        local_game_state["ball"]["pos"][0],
+        local_game_state["ball"]["pos"][1],
+    )
 
     # Draw everything
     screen.fill(BLACK)
@@ -122,25 +126,28 @@ def game():
 
 
 def handle_game_client(message, socket_name):
-    global player_name
+    global player_name, game_state, current_screen, state_lock
     data = json.loads(message)
     if "player_name" in data:
         player_name = data["player_name"]
         logger.debug(f"{player_name}")
+    if "game_start" in data:
+        current_screen = PLAY_SCREEN
+    with state_lock:
+        game_state.update(data)
 
 
 async def main():
-    global ball_vel_x, ball_vel_y, left_score, right_score
+    global ball_vel_x, ball_vel_y, left_score, right_score, current_screen
 
     running = True
-    game_state = GAME_STATE_LOBBY
 
     ws_client = WebSocketClient("localhost", 8765)
     lobby_screen = lobby.LobbyScreen(ws_client)
 
     def on_message(message, socket_name):
-        global game_client, player_name
-        nonlocal game_state
+        global game_client, player_name, current_screen
+
         data = json.loads(message)
         if "host" in data and "port" in data:
             logger.debug(f"Connecting to echo server: {data['host']}:{data['port']}")
@@ -151,7 +158,7 @@ async def main():
                 socked_name="game",
             )
             asyncio.create_task(socket_handler(game_client))
-            game_state = GAME_STATE_PLAY
+            current_screen = WAIT_SCREEN
         else:
             lobby_screen.handle_message(message, socket_name)
 
@@ -166,16 +173,29 @@ async def main():
                 running = False
             elif event.type == pygame.FINGERDOWN or event.type == pygame.FINGERMOTION:
                 handle_touch(event)
-            if game_state == GAME_STATE_LOBBY:
+            if current_screen == LOBBY_SCREEN:
                 lobby_screen.handle_event(event)
-        if game_state == GAME_STATE_LOBBY:
+        if current_screen == LOBBY_SCREEN:
             if pygame.time.get_ticks() % 2000 < 100:
                 ws_client.send('{"command": "list"}')
             lobby_screen.handle_mouse_pos(pygame.mouse.get_pos())
             lobby_screen.draw(screen)
 
-        if game_state == GAME_STATE_PLAY:
+        if current_screen == PLAY_SCREEN:
             game()
+        if current_screen == WAIT_SCREEN:
+            if pygame.time.get_ticks() % 2000 < 100 and player_name is None:
+                game_client.send('{"ask_name": true}')
+            screen.fill(BLACK)
+            font = pygame.font.Font(None, 74)
+            text = font.render("Waiting for opponent...", True, WHITE)
+            screen.blit(
+                text,
+                (
+                    WIDTH // 2 - text.get_width() // 2,
+                    HEIGHT // 2 - text.get_height() // 2,
+                ),
+            )
 
         # Update display and tick clock
         # pygame.display.flip()
