@@ -74,7 +74,7 @@ class PongServer(BaseServer):
                 # Broadcast game state
                 await self.broadcast(json.dumps(self.game_state))
 
-            await asyncio.sleep(1 / 60)  # Run at 60 FPS
+            await asyncio.sleep(1 / 120)  # Run at 60 FPS
 
     async def handle_client_message(self, websocket: ServerConnection, message):
         data = json.loads(message)

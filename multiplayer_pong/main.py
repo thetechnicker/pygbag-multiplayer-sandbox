@@ -22,7 +22,7 @@ from pygbag_network_utils.client.socket.websocket import WebSocketClient, socket
 from pygbag_network_utils.client.gui import BrowserConsoleHandler
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.WARNING,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[BrowserConsoleHandler()],
 )
