@@ -7,17 +7,18 @@
 
 # Initialize Pygame
 import asyncio
+import json
 import logging
 import random
 
 import pygame
 
+pygame.init()
+
 import lobby
-import pygbag_network_utils
+
 from pygbag_network_utils.client.socket.websocket import WebSocketClient, socket_handler
-from pygbag_network_utils.client.gui.browser_console_handler import (
-    BrowserConsoleHandler,
-)
+from pygbag_network_utils.client.gui import BrowserConsoleHandler
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -26,8 +27,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-pygame.init()
 
 # Screen dimensions
 # WIDTH, HEIGHT = 320, 240
@@ -50,15 +49,9 @@ BALL_SPEED_X = 4
 BALL_SPEED_Y = 4
 
 # Initialize paddles and ball positions
-left_paddle = pygame.Rect(
-    20, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT
-)
-right_paddle = pygame.Rect(
-    WIDTH - 30, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT
-)
-ball = pygame.Rect(
-    WIDTH // 2 - BALL_SIZE // 2, HEIGHT // 2 - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE
-)
+left_paddle = pygame.Rect(20, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT)
+right_paddle = pygame.Rect(WIDTH - 30, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT)
+ball = pygame.Rect(WIDTH // 2 - BALL_SIZE // 2, HEIGHT // 2 - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE)
 
 # Ball velocity
 ball_vel_x = BALL_SPEED_X * random.choice((-1, 1))
@@ -68,19 +61,22 @@ ball_vel_y = BALL_SPEED_Y * random.choice((-1, 1))
 left_score = 0
 right_score = 0
 
+GAME_STATE_LOBBY = 0
+GAME_STATE_PLAY = 1
+
+
 # Load custom font (ensure "font.ttf" exists in your project directory)
 try:
-    font = pygame.font.Font(
-        "font.ttf", 74
-    )  # Replace "font.ttf" with your font file name.
+    font = pygame.font.Font("font.ttf", 74)  # Replace "font.ttf" with your font file name.
 except FileNotFoundError:
-    font = pygame.font.Font(
-        None, 74
-    )  # Fallback to default font if custom font is missing.
+    font = pygame.font.Font(None, 74)  # Fallback to default font if custom font is missing.
+
+game_client = None
+player_name = None
 
 
 def game():
-    global ball_vel_x, ball_vel_y, left_score, right_score  # Get keys for paddle movement
+    global ball_vel_x, ball_vel_y, left_score, right_score, game_client, player_name  # Get keys for paddle movement
     keys = pygame.key.get_pressed()
     if keys[pygame.K_w] and left_paddle.top > 0:
         left_paddle.y -= PADDLE_SPEED
@@ -125,13 +121,41 @@ def game():
     screen.blit(right_text, (3 * WIDTH // 4 - right_text.get_width() // 2, 20))
 
 
+def handle_game_client(message, socket_name):
+    global player_name
+    data = json.loads(message)
+    if "player_name" in data:
+        player_name = data["player_name"]
+        logger.debug(f"{player_name}")
+
+
 async def main():
     global ball_vel_x, ball_vel_y, left_score, right_score
 
     running = True
+    game_state = GAME_STATE_LOBBY
 
     ws_client = WebSocketClient("localhost", 8765)
     lobby_screen = lobby.LobbyScreen(ws_client)
+
+    def on_message(message, socket_name):
+        global game_client, player_name
+        nonlocal game_state
+        data = json.loads(message)
+        if "host" in data and "port" in data:
+            logger.debug(f"Connecting to echo server: {data['host']}:{data['port']}")
+            game_client = WebSocketClient(
+                data["host"],
+                int(data["port"]),
+                handle_game_client,
+                socked_name="game",
+            )
+            asyncio.create_task(socket_handler(game_client))
+            game_state = GAME_STATE_PLAY
+        else:
+            lobby_screen.handle_message(message, socket_name)
+
+    ws_client.set_message_callback(on_message)
     socket_task = asyncio.create_task(socket_handler(ws_client))
     logger.debug("tests")
 
@@ -142,10 +166,16 @@ async def main():
                 running = False
             elif event.type == pygame.FINGERDOWN or event.type == pygame.FINGERMOTION:
                 handle_touch(event)
-            lobby_screen.handle_event(event)
+            if game_state == GAME_STATE_LOBBY:
+                lobby_screen.handle_event(event)
+        if game_state == GAME_STATE_LOBBY:
+            if pygame.time.get_ticks() % 2000 < 100:
+                ws_client.send('{"command": "list"}')
+            lobby_screen.handle_mouse_pos(pygame.mouse.get_pos())
+            lobby_screen.draw(screen)
 
-        lobby_screen.draw(screen)
-        # game()
+        if game_state == GAME_STATE_PLAY:
+            game()
 
         # Update display and tick clock
         # pygame.display.flip()
@@ -154,6 +184,9 @@ async def main():
 
         # Allow asyncio to process other tasks (important for Pygbag compatibility)
         await asyncio.sleep(0)
+
+    await ws_client.close()
+    await socket_task
 
     pygame.quit()
 
