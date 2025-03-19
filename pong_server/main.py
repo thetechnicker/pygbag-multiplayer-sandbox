@@ -40,10 +40,11 @@ class PongServer(BaseServer):
 
     async def game_loop(self):
         self.last_update_time = asyncio.get_event_loop().time()
+        dt = 1
         while self.running:
-            current_time = asyncio.get_event_loop().time()
-            dt = current_time - self.last_update_time
-            self.last_update_time = current_time
+            # current_time = asyncio.get_event_loop().time()
+            # dt = current_time - self.last_update_time
+            # self.last_update_time = current_time
 
             if self.new_player_id == 2 and not self.game_running:
                 self.game_running = True

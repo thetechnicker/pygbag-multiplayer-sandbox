@@ -50,15 +50,9 @@ BALL_SPEED_X = 4
 BALL_SPEED_Y = 4
 
 # Initialize paddles and ball positions
-left_paddle = pygame.Rect(
-    20, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT
-)
-right_paddle = pygame.Rect(
-    WIDTH - 30, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT
-)
-ball = pygame.Rect(
-    WIDTH // 2 - BALL_SIZE // 2, HEIGHT // 2 - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE
-)
+left_paddle = pygame.Rect(20, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT)
+right_paddle = pygame.Rect(WIDTH - 30, (HEIGHT - PADDLE_HEIGHT) // 2, PADDLE_WIDTH, PADDLE_HEIGHT)
+ball = pygame.Rect(WIDTH // 2 - BALL_SIZE // 2, HEIGHT // 2 - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE)
 
 # Ball velocity
 ball_vel_x = BALL_SPEED_X * random.choice((-1, 1))
@@ -76,13 +70,9 @@ END_SCREEN = 3
 
 # Load custom font (ensure "font.ttf" exists in your project directory)
 try:
-    font = pygame.font.Font(
-        "font.ttf", 74
-    )  # Replace "font.ttf" with your font file name.
+    font = pygame.font.Font("font.ttf", 74)  # Replace "font.ttf" with your font file name.
 except FileNotFoundError:
-    font = pygame.font.Font(
-        None, 74
-    )  # Fallback to default font if custom font is missing.
+    font = pygame.font.Font(None, 74)  # Fallback to default font if custom font is missing.
 
 game_client = None
 player_name = None
