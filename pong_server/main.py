@@ -105,12 +105,18 @@ def main():
     parser.add_argument(
         "--port", type=int, default=8765, help="Port for the main server"
     )
+    parser.add_argument(
+        "--key", type=str, default="certs/key.pem", help="Port for the main server"
+    )
+    parser.add_argument(
+        "--cert", type=str, default="certs/cert.pem", help="Port for the main server"
+    )
 
     args = parser.parse_args()
 
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     try:
-        ssl_context.load_cert_chain(certfile="certs/cert.pem", keyfile="certs/key.pem")
+        ssl_context.load_cert_chain(certfile=args.cert, keyfile=args.key)
         logging.info("SSL context loaded successfully")
     except Exception as e:
         logging.error(f"Failed to load SSL context: {str(e)}")
